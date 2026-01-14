@@ -1,0 +1,50 @@
+{
+  "name": "acuinsight-files-services",
+  "description": "application created by thinkjs",
+  "version": "1.0.0",
+  "author": "leet <whpicker@leet.com>",
+  "scripts": {
+    "start": "node --tls-min-v1.0 development.js",
+    "test": "THINK_UNIT_TEST=1 nyc ava test/ && nyc report --reporter=html",
+    "lint": "eslint src/",
+    "lint-fix": "eslint --fix src/"
+  },
+  "dependencies": {
+    "sequelize": "^6.25.3",
+    "think-cache": "^1.0.0",
+    "think-cache-file": "^1.0.8",
+    "think-logger3": "^1.0.0",
+    "think-model": "^1.0.0",
+    "think-model-mysql": "^1.0.0",
+    "think-session": "^1.0.0",
+    "think-session-file": "^1.0.5",
+    "think-view": "^1.0.0",
+    "think-view-nunjucks": "^1.0.1",
+    "thinkjs": "^3.0.0"
+  },
+  "devDependencies": {
+    "ava": "^0.18.0",
+    "eslint": "^4.2.0",
+    "eslint-config-think": "^1.0.0",
+    "nyc": "^7.0.0",
+    "think-watcher": "^3.0.0"
+  },
+  "repository": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=6.0.0"
+  },
+  "readmeFilename": "README.md",
+  "thinkjs": {
+    "metadata": {
+      "name": "acuinsight-files-services",
+      "description": "application created by thinkjs",
+      "author": "leet <whpicker@leet.com>",
+      "babel": false
+    },
+    "projectName": "acuinsight-files-services",
+    "template": "/usr/local/lib/node_modules/think-cli/default_template",
+    "clone": false,
+    "isMultiModule": false
+  }
+}
