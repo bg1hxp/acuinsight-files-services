@@ -63,13 +63,31 @@ module.exports = class extends Base {
 
       let readStream = fs.createReadStream(file.path);
 
-      InventoryIDs.split(',').forEach(item=>{
+     /* InventoryIDs.split(',').forEach(item=>{
         let _index_filename = filename.split('_').pop();
         let _filename = `${_tempPrefix}${item}_${_index_filename}`
         let _filepath = `${filepath}${_filename}`
         let writeStream = fs.createWriteStream(_filepath);
         readStream.pipe(writeStream);
-      })
+      })*/
+      
+     InventoryIDs.split(',').forEach(item => {
+  let _index_filename = filename.split('_').pop();
+  let _filename = `${_tempPrefix}${item}_${_index_filename}`;
+  let _filepath = `${filepath}${_filename}`;
+
+  try {
+    fs.copyFileSync(file.path, _filepath);
+
+    const st = fs.statSync(_filepath);
+    if (st.size === 0) {
+      console.error('[uploadPLRImgAction] copy ok but 0KB:', _filepath);
+    }
+
+  } catch (e) {
+    console.error('[uploadPLRImgAction] copyFileSync error:', _filepath, e);
+  }
+});
       
     }
     return this.json({url:`${_tempPrefix}${filename}`});
