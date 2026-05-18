@@ -11,7 +11,7 @@ module.exports = [
   },
   {
     handle: 'resource',
-    enable: isDev,
+    enable: true,  // ops: always serve /static/ (saw211 跑 NODE_ENV=dev,我们 prod 也必须开)
     options: {
       root: path.join(think.ROOT_PATH, 'www'),
       publicPath: /^\/(static|favicon\.ico)/
