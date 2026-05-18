@@ -20,7 +20,8 @@ RUN mkdir -p runtime/cache runtime/session logs \
     www/static/splitImageOutput \
     www/static/snapitSeverPath \
     www/static/nodejsFiles \
-    www/static/highReImagesOutput
+    www/static/highReImagesOutput \
+    view && echo "ok" > view/index_index.html
 
 ENV NODE_ENV=production
 EXPOSE 9000
