@@ -1,0 +1,12 @@
+.git
+.gitignore
+node_modules
+runtime
+logs
+www/static/*/*
+*.log
+.DS_Store
+README.md
+.eslintrc
+test
+.github
