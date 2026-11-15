@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node --tls-min-v1.0 development.js",
     "test": "THINK_UNIT_TEST=1 nyc ava test/ && nyc report --reporter=html",
+    "test:security": "node --test test/*.test.cjs",
     "lint": "eslint src/",
     "lint-fix": "eslint --fix src/"
   },

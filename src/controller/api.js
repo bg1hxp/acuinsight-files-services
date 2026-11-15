@@ -1,160 +1,94 @@
-const Base = require("./base");
-
-const fs = require("fs");
-// const path = require("path");
+const Base = require('./base');
+const fs = require('fs').promises;
 const crypto = require('crypto');
 const moment = require('moment');
-
-const {
-  PowerLink_R_Image=null,
-  PowerLink_Record_Image=null,
-  Timeline_Files=null
-} = think.config('FilePath');
-
-const rImag_temp_prefix = 'temp_#_';
-
-// console.log(PowerLink_R_Image, PowerLink_Record_Image, Timeline_Files)
+const Access = require('../service/fileAuthorization');
+const Policy = require('../service/fileUploadPolicy');
 
 module.exports = class extends Base {
-
-  indexAction() {
-    return this.json({ Scope: 'OEM RIM SHOP TesT API' })
+  async __before() {
+    this.ctx.set('Cache-Control', 'no-store');
+    const action = Access.actionForPath(this.ctx.path);
+    if (!action) return this.reject(404, 'Unknown file operation');
+    if (this.ctx.method !== 'POST') return this.reject(405, 'Use POST');
+    if (this.ctx.state.fileAction === action && this.ctx.state.fileUser) return;
+    try {
+      this.ctx.state.fileUser = await Access.authorize(this.header('token') || this.post('_token'), action);
+    } catch (error) {
+      return this.reject(error.status || 503, error.message);
+    }
   }
 
-  async uploadfileAction(){
-    let { filename } = this.post();
-    const file = this.file("file");
-    const file_suffix = filename.split('.').pop();
-    let filepath = Timeline_Files
-    var buffer = fs.readFileSync(file.path);
-    var fsHash = crypto.createHash('md5');
-    fsHash.update(buffer);
-    filename = fsHash.digest('hex') + '.' + file_suffix;
-    const sub_path = moment().format('YYYY/WW/')
-    filepath = `${filepath}${sub_path}`
-    if( ! fs.existsSync(filepath) ){
-      think.mkdir(filepath)
-    }
-    filepath = `${filepath}${filename}`
-    filename = `/${sub_path}${filename}`
-    let readStream = fs.createReadStream(file.path);
-    let writeStream = fs.createWriteStream(filepath);
-    readStream.pipe(writeStream);    
+  reject(status, message) {
+    this.ctx.status = status;
+    this.json({ errno: status, errmsg: message });
+    return false;
+  }
 
-    return this.json({url:filename});
-  }  
+  async uploadfileAction() {
+    try {
+      const { bytes, ext } = await Policy.upload(this.file('file'), this.post('filename'), false);
+      const filename = crypto.createHash('md5').update(bytes).digest('hex') + '.' + ext;
+      const name = moment().format('YYYY/WW/') + filename;
+      await Policy.save(think.config('FilePath').Timeline_Files, name, bytes);
+      return this.json({ url: '/' + name });
+    } catch (error) { return this.reject(error.status || 500, error.status ? error.message : 'File could not be saved'); }
+  }
 
-
-   /**
-   * @description 支持 多R# 同时传一张图片，并根据 R#list、图片尾部的序号号 自动保存多份
-   * @returns 
-   */
   async uploadPLRImgAction() {
-    let { filename, InventoryIDs } = this.post();
-
-    const file = this.file("file");
-    let filepath = PowerLink_R_Image
-    let fileId = moment().format('x');
-    let _tempPrefix = `${rImag_temp_prefix}${fileId}@`
-    if (file.type === "image/jpeg" || file.type === "image/png") {
-      if( ! fs.existsSync(filepath) ){
-        think.mkdir(filepath)
-      }
-
-      let readStream = fs.createReadStream(file.path);
-
-     /* InventoryIDs.split(',').forEach(item=>{
-        let _index_filename = filename.split('_').pop();
-        let _filename = `${_tempPrefix}${item}_${_index_filename}`
-        let _filepath = `${filepath}${_filename}`
-        let writeStream = fs.createWriteStream(_filepath);
-        readStream.pipe(writeStream);
-      })*/
-      
-     InventoryIDs.split(',').forEach(item => {
-  let _index_filename = filename.split('_').pop();
-  let _filename = `${_tempPrefix}${item}_${_index_filename}`;
-  let _filepath = `${filepath}${_filename}`;
-
-  try {
-    fs.copyFileSync(file.path, _filepath);
-
-    const st = fs.statSync(_filepath);
-    if (st.size === 0) {
-      console.error('[uploadPLRImgAction] copy ok but 0KB:', _filepath);
-    }
-
-  } catch (e) {
-    console.error('[uploadPLRImgAction] copyFileSync error:', _filepath, e);
-  }
-});
-      
-    }
-    return this.json({url:`${_tempPrefix}${filename}`});
-    // return this.json({url:_filename});
+    try {
+      const filename = this.post('filename');
+      const ids = Policy.ids(this.post('InventoryIDs'));
+      const { bytes } = await Policy.upload(this.file('file'), filename);
+      const suffix = filename.split('_').pop();
+      if (!/^\d{1,3}\.(jpg|jpeg|png)$/i.test(suffix)) throw Policy.bad('Invalid image sequence');
+      const prefix = 'temp_#_' + Date.now() + '@';
+      for (const id of ids) await Policy.save(think.config('FilePath').PowerLink_R_Image, prefix + id + '_' + suffix, bytes);
+      return this.json({ url: prefix + filename });
+    } catch (error) { return this.reject(error.status || 500, error.status ? error.message : 'Image could not be saved'); }
   }
 
- /**
-   * @description 使用 要保留的文件列表，来rename要保留的文件, 并重新按顺序排号, 文件名的规则： H#+R#_index.jpg/.png/.jpeg, 最后一张 : H#+R#_index_end.jpg/.png/.jpeg,
-   * @returns 
-   */
-  async confirmPLRImgAction(){
-    let { filenames=[], InventoryIDs=[], InventoryNumber='UNDEFINED' } = this.post();
-    console.log(this.post())
-    
-    filenames.forEach((name, index) => {
-      // temp_#_1671252890655@88974_04.png
-      let _index_filename = '_' + name.split('_').pop();
-      InventoryIDs.forEach(item=>{
-        // let oldfileName = `${rImag_temp_prefix}${item}${_index_filename}`;
-        // let serialNo = index<10 ? '0'+(index+6) : index+6;
-        let oldfileName = name.replace(/@(.*?)_/, `@${item}_`)
-        let serialNo = index+6;
-        serialNo = serialNo < 10 ? '0' + serialNo : serialNo;
-        if(index == filenames.length -1) serialNo = serialNo + '_end';
-        let newfileName = `${InventoryNumber}+${item}_${serialNo}.${_index_filename.split('.').pop()}`;
-        console.log( name, index, _index_filename,  item, oldfileName, newfileName)
-        try {
-          fs.renameSync(`${PowerLink_R_Image}${oldfileName}`,`${PowerLink_R_Image}${newfileName}`)
-        } catch (error) {
-          console.error('confirmPLRImgAction, rename error', error)
+  async confirmPLRImgAction() {
+    try {
+      const { filenames, InventoryIDs, InventoryNumber } = this.post();
+      const ids = Policy.ids(InventoryIDs);
+      if (!Array.isArray(filenames) || !filenames.length || filenames.length > 100 || typeof InventoryNumber !== 'string' || !/^[A-Za-z0-9-]{1,80}$/.test(InventoryNumber)) throw Policy.bad('Invalid image confirmation');
+      const root = think.config('FilePath').PowerLink_R_Image;
+      const moves = [];
+      for (let index = 0; index < filenames.length; index++) {
+        const name = Policy.basename(filenames[index]);
+        if (!/^temp_#_\d+@[^@]+_\d{1,3}\.(jpg|jpeg|png)$/i.test(name)) throw Policy.bad('Invalid temporary image');
+        for (const id of ids) {
+          const oldName = name.replace(/@(.*?)_/, '@' + id + '_');
+          const serial = String(index + 6).padStart(2, '0') + (index === filenames.length - 1 ? '_end' : '');
+          const targetName = InventoryNumber + '+' + id + '_' + serial + '.' + Policy.filename(name);
+          const source = await Policy.contained(root, oldName, true);
+          if (!(await fs.lstat(source)).isFile()) throw Policy.bad('Invalid temporary image');
+          moves.push([source, await Policy.contained(root, targetName)]);
         }
-      })
-    });
-    return this.json(1)
+      }
+      if (new Set(moves.map(move => move[0])).size !== moves.length) throw Policy.bad('Duplicate temporary images');
+      for (const [source, target] of moves) await fs.rename(source, target);
+      return this.json(1);
+    } catch (error) { return this.reject(error.status || 500, error.status ? error.message : 'Images could not be confirmed'); }
   }
-
 
   async uploadPLRRecordImgAction() {
-    let { filename } = this.post();
-    const file = this.file("file");
-    console.log(file.path, file.type)
-
-    let filepath = PowerLink_Record_Image
-    console.log('filepath', filepath)
-
-    if (file.type === "image/jpeg" || file.type === "image/png") {
-      const sub_path = moment().format('YYYY/WW/')
-      filepath = `${filepath}${sub_path}`
-      if( ! fs.existsSync(filepath) ){
-        think.mkdir(filepath)
-      }
-      filepath = `${filepath}${filename}`
-      filename = `/${sub_path}${filename}`
-      let readStream = fs.createReadStream(file.path);
-      let writeStream = fs.createWriteStream(filepath);
-      readStream.pipe(writeStream);
-    }
-    return this.json({url:filename});
+    try {
+      const filename = this.post('filename');
+      const { bytes } = await Policy.upload(this.file('file'), filename);
+      const name = moment().format('YYYY/WW/') + filename;
+      await Policy.save(think.config('FilePath').PowerLink_Record_Image, name, bytes);
+      return this.json({ url: '/' + name });
+    } catch (error) { return this.reject(error.status || 500, error.status ? error.message : 'Record image could not be saved'); }
   }
-
-}
+};
 
 async function simulateDBTime(timer) {
   return new Promise((res, rej) => {
     setTimeout(() => {
-      console.log('simulateDBTime', timer)
-      res('ok1')
+      console.log('simulateDBTime', timer);
+      res('ok1');
     }, timer);
-  })
+  });
 }
