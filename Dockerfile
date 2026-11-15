@@ -2,8 +2,14 @@ FROM node:16.20-bullseye
 
 WORKDIR /home/saw/acuinsight-files-services
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# These tools are already present in the base image. Keep builds available when
+# old bullseye-security package URLs return404, and verify the required tools.
+RUN (apt-get update && apt-get install -y --no-install-recommends \
       curl ca-certificates tzdata \
+      || echo "Using the base image curl, CA certificates and timezone data") \
+    && curl --version > /dev/null \
+    && test -s /etc/ssl/certs/ca-certificates.crt \
+    && test -f /usr/share/zoneinfo/America/Los_Angeles \
     && rm -rf /var/lib/apt/lists/*
 
 ENV TZ=UTC
