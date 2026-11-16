@@ -34,6 +34,7 @@ module.exports = () => async (ctx, next) => {
   let readAction = PRIVATE[folder];
   if (document) {
     readAction = /^(?:labels[^/]*|usps_labels|wo|BWRPickList|printers|manual_fulfillment)$/.test(parts[3]) ? 'readShippingDocument' : 'readAdminDocument';
+    if (/^reports\/Work_Order_Daily_Report_\d{4}-\d{2}-\d{2}\.xlsx$/.test(parts.slice(3).join('/'))) readAction = 'readWorkOrderReport';
   }
   const contained = async () => {
     try {

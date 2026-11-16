@@ -80,3 +80,23 @@ test('a public image root cannot expose private siblings through a symlink', asy
   await middleware(ctx, () => { served = true; });
   assert.equal(ctx.status, 400); assert.equal(served, false);
 });
+test('only exact work order daily report paths select the dedicated report grant', async () => {
+  const original = Access.authorize;
+  try {
+    for (const [relative, expected] of [
+      ['reports/Work_Order_Daily_Report_2026-11-13.xlsx', 'readWorkOrderReport'],
+      ['reports/Other_Report_2026-11-13.xlsx', 'readAdminDocument'],
+      ['reports/Work_Order_Daily_Report_2026-11-13.pdf', 'readAdminDocument'],
+      ['reports/Work_Order_Daily_Report_2026-11-13-extra.xlsx', 'readAdminDocument'],
+      ['reports/subdir/Work_Order_Daily_Report_2026-11-13.xlsx', 'readAdminDocument'],
+      ['other/Work_Order_Daily_Report_2026-11-13.xlsx', 'readAdminDocument']
+    ]) {
+      const file = root + '/nodejsFiles/' + relative;
+      fs.mkdirSync(require('path').dirname(file), { recursive: true }); fs.writeFileSync(file, 'fixture');
+      Access.authorize = async (token, action) => { assert.equal(action, expected); return { userid: 1 }; };
+      let served = false;
+      await middleware(fixture('/static/nodejsFiles/' + relative, 'verified-cookie'), () => { served = true; });
+      assert.equal(served, true, relative);
+    }
+  } finally { Access.authorize = original; }
+});
