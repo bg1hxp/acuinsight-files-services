@@ -100,3 +100,23 @@ test('only exact work order daily report paths select the dedicated report grant
     }
   } finally { Access.authorize = original; }
 });
+test('repeated slashes in a legacy image URL resolve to the same guarded file', async () => {
+  const original = Access.authorize;
+  Access.authorize = async () => ({ userid: 1 });
+  try {
+    // The admin UI joins a trailing-slash base with a leading-slash path, so every
+    // stored record photo has always been requested as rack_record_upload//<year>/...
+    const ctx = fixture('/static/rack_record_upload//2026/46/photo.png', 'verified-cookie'); let served = false;
+    await middleware(ctx, () => { served = true });
+    assert.equal(served, true);
+    assert.equal(ctx.path, '/static/rack_record_upload/2026/46/photo.png');
+    const publicCtx = fixture('//static//highReImagesOutput//123_01.jpg'); let publicServed = false;
+    await middleware(publicCtx, () => { publicServed = true });
+    assert.equal(publicServed, true);
+    for (const p of ['/static/rack_record_upload//../timeline_upload/test.jpg', '/static//../etc/passwd.jpg', '/static//unknown_root//test.jpg']) {
+      const unsafe = fixture(p, 'verified-cookie');
+      await middleware(unsafe, () => assert.fail('Unsafe path was served'));
+      assert.ok([400, 403, 404].includes(unsafe.status), p + ' -> ' + unsafe.status);
+    }
+  } finally { Access.authorize = original }
+});

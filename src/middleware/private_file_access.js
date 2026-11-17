@@ -18,6 +18,9 @@ const IMAGES = /\.(?:jpe?g|png|gif|webp)$/i;
 const ATTACHMENTS = /\.(?:jpe?g|png|gif|webp|pdf|txt|csv|xlsx?|docx?|zip)$/i;
 
 module.exports = () => async (ctx, next) => {
+  // Stored image URLs join a trailing-slash base with a leading-slash path, so the
+  // repeated separator has to collapse before the gate reads the root out of the path.
+  if (/\/{2,}/.test(ctx.path)) ctx.path = ctx.path.replace(/\/{2,}/g, '/');
   if (!ctx.path.startsWith('/static') && !ctx.path.startsWith('/favicon.ico')) return next();
   ctx.set('Cache-Control', 'private, no-store');
   ctx.set('X-Content-Type-Options', 'nosniff');
