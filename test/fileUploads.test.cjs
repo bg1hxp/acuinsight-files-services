@@ -61,6 +61,24 @@ test('authorized product upload and confirmation preserve multi-R filenames', as
   assert.notEqual(await d.__before(), false); await d.confirmPLRImgAction();
   for (const id of [123, 456]) assert.deepEqual(fs.readFileSync(roots.PowerLink_R_Image + `560-12345A+${id}_06_end.png`), png);
 });
+test('confirmation accepts catch-all 560. H# numbers and rejects unsafe ones', async () => {
+  for (const [id, number] of [[201, '560.96231'], [202, '560.Range Ro'], [203, '114-12345AL']]) {
+    const c = controller('uploadPLRImg', { filename: `${id}_01.png`, InventoryIDs: String(id) }, undefined, image());
+    assert.notEqual(await c.__before(), false); await c.uploadPLRImgAction();
+    const d = controller('confirmPLRImg', { filenames: [c.response.url], InventoryIDs: [id], InventoryNumber: number });
+    assert.notEqual(await d.__before(), false); await d.confirmPLRImgAction();
+    assert.equal(d.response, 1, number);
+    assert.equal(fs.existsSync(roots.PowerLink_R_Image + `${number}+${id}_06_end.png`), true, number);
+  }
+  for (const number of ['..', '../560', '560/1', '560\\1', '.hidden', '', '   ', 'x'.repeat(81), 12345]) {
+    const c = controller('uploadPLRImg', { filename: '204_01.png', InventoryIDs: '204' }, undefined, image());
+    assert.notEqual(await c.__before(), false); await c.uploadPLRImgAction();
+    const d = controller('confirmPLRImg', { filenames: [c.response.url], InventoryIDs: [204], InventoryNumber: number });
+    assert.notEqual(await d.__before(), false); await d.confirmPLRImgAction();
+    assert.equal(d.ctx.status, 400, String(number));
+    assert.equal(fs.existsSync(roots.PowerLink_R_Image + c.response.url), true, String(number));
+  }
+});
 test('authorized record photo exists completely before success is returned', async () => {
   const c = controller('uploadPLRRecordImg', { filename: '123_01.png' }, undefined, image());
   assert.notEqual(await c.__before(), false); await c.uploadPLRRecordImgAction();

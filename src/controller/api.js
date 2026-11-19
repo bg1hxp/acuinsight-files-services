@@ -5,6 +5,13 @@ const moment = require('moment');
 const Access = require('../service/fileAuthorization');
 const Policy = require('../service/fileUploadPolicy');
 
+// Powerlink H# is free text: catch-all numbers look like `560.96231` or `560.Range Ro`. It becomes part of a
+// filename, so reject only what is unsafe in one (separators, control characters, leading dot, `..`).
+function validInventoryNumber(value) {
+  if (typeof value !== 'string' || !value.trim() || value.length > 80) return false;
+  try { Policy.basename(value); return true; } catch (error) { return false; }
+}
+
 module.exports = class extends Base {
   async __before() {
     this.ctx.set('Cache-Control', 'no-store');
@@ -52,7 +59,7 @@ module.exports = class extends Base {
     try {
       const { filenames, InventoryIDs, InventoryNumber } = this.post();
       const ids = Policy.ids(InventoryIDs);
-      if (!Array.isArray(filenames) || !filenames.length || filenames.length > 100 || typeof InventoryNumber !== 'string' || !/^[A-Za-z0-9-]{1,80}$/.test(InventoryNumber)) throw Policy.bad('Invalid image confirmation');
+      if (!Array.isArray(filenames) || !filenames.length || filenames.length > 100 || !validInventoryNumber(InventoryNumber)) throw Policy.bad('Invalid image confirmation');
       const root = think.config('FilePath').PowerLink_R_Image;
       const moves = [];
       for (let index = 0; index < filenames.length; index++) {
